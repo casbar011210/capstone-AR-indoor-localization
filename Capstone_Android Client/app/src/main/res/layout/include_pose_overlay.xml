@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="96dp"
+    android:layout_height="96dp"
+    android:background="#661B222C"
+    android:elevation="12dp"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/tvPose"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <com.capstone.capstone.ui.PoseOverlayView
+        android:id="@+id/poseOverlay"
+        android:layout_width="72dp"
+        android:layout_height="72dp" />
+</LinearLayout>

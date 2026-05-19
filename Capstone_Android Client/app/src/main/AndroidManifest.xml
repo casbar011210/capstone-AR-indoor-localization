@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 权限 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 如需录音再打开： -->
+    <!-- <uses-permission android:name="android.permission.RECORD_AUDIO" /> -->
+
+    <!-- 设备特性 -->
+    <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+    <!-- ARCore 需要 OpenGL ES 3.0 -->
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Capstone"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:targetApi="31">
+
+        <!-- 如果你的项目里真的有这两个资源文件再保留；没有就删掉这两行 -->
+        <!-- android:dataExtractionRules="@xml/data_extraction_rules" -->
+        <!-- android:fullBackupContent="@xml/backup_rules" -->
+
+        <!-- ★ 必须：声明 ARCore 支持（required 或 optional 二选一） -->
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="required" />
+        <!-- 若希望在不支持 AR 的设备上也能运行，请改成：
+        <meta-data android:name="com.google.ar.core" android:value="optional" /> -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

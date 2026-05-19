@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 放开所有明文 HTTP（开发期最简单；上线前再收紧） -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
