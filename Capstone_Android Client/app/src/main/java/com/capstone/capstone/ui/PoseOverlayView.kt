@@ -21,7 +21,7 @@ class PoseOverlayView @JvmOverloads constructor(
         strokeWidth = 7f; color = Color.RED; style = Paint.Style.STROKE
     }
 
-    /** 传入四元数（qx,qy,qz,qw），粗略取 yaw 可视化方向 */
+    /** Pass in a quaternion (qx, qy, qz, qw), roughly taking yaw to determine the visual orientation */
     fun setQuaternion(qx: Float, qy: Float, qz: Float, qw: Float) {
         // 以 Z 轴为“朝上”假设：由四元数求 yaw
         val t3 = 2f * (qw * qz + qx * qy)
@@ -37,13 +37,13 @@ class PoseOverlayView @JvmOverloads constructor(
         val cy = height / 2f
         val r  = min(cx, cy) - 10f
 
-        // 画 X/Y 简易坐标轴
+// Draw simple X/Y coordinate axes
         pAxis.color = Color.BLUE
         c.drawLine(cx, cy, cx + r, cy, pAxis)     // X
         pAxis.color = Color.GREEN
         c.drawLine(cx, cy, cx, cy - r, pAxis)     // Y
 
-        // 红色箭头表示朝向（按 yaw 旋转）
+// The red arrow indicates the direction (rotated according to yaw)
         c.save()
         c.translate(cx, cy)
         c.rotate(yawDeg)

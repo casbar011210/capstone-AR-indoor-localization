@@ -3,7 +3,11 @@ package com.capstone.capstone
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.InputType
+import android.widget.EditText
+import android.widget.Toast
 import android.util.Log
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.capstone.capstone.ar.ArPoseSnapshot
@@ -49,12 +53,20 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        RetrofitClient.init(applicationContext)
+        showServerDialogIfNeeded()
+
         binding.mapCard.bringToFront()
         binding.mapCard.elevation = 30f
 
         uiUpdater = UiUpdater(binding, lifecycleScope)
         binding.tvMapStatus.text = "Path not loaded"
         binding.tvArDebugStatus.text = "Ready to localize"
+        updateServerSubtitle()
+        binding.topBar.setOnLongClickListener {
+            showServerDialog(force = true)
+            true
+        }
 
         arFragment = supportFragmentManager.findFragmentById(R.id.arFragment) as ArFragment
         arFragment.setOnSessionConfigurationListener { _, config ->
@@ -94,6 +106,54 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         startArTrackingPoller()
+    }
+
+    private fun showServerDialogIfNeeded() {
+        if (!RetrofitClient.hasSavedBaseUrl(applicationContext)) {
+            showServerDialog(force = false)
+        }
+    }
+
+    private fun updateServerSubtitle() {
+        binding.topBar.subtitle = "Server: ${RetrofitClient.getBaseUrl(applicationContext)}"
+    }
+
+    private fun showServerDialog(force: Boolean) {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            hint = "http://192.168.1.100:5001/"
+            setSingleLine(true)
+            setText(RetrofitClient.getBaseUrl(applicationContext))
+            selectAll()
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Backend Server")
+            .setMessage("Enter the backend server URL shown in the Flask server terminal. The phone and server must be on the same Wi-Fi network.")
+            .setView(input)
+            .setPositiveButton("Save", null)
+            .apply {
+                if (force) {
+                    setNegativeButton("Cancel", null)
+                }
+            }
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                try {
+                    val savedUrl = RetrofitClient.updateBaseUrl(applicationContext, input.text.toString())
+                    updateServerSubtitle()
+                    Toast.makeText(this, "Server saved: $savedUrl", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                } catch (e: Exception) {
+                    input.error = e.message ?: "Invalid server URL"
+                }
+            }
+        }
+
+        dialog.setCancelable(force)
+        dialog.show()
     }
 
     private fun setupUiButtons() {

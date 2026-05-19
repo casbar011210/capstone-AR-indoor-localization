@@ -1,228 +1,90 @@
-# Capstone AR Indoor Localization Android Client
+# Hybrid Indoor Localization and AR Navigation System
+## Android Client
 
-## Overview
+This Android application is the mobile client for a hybrid indoor localization and AR navigation system based on visual localization and ARCore.
 
-This project is the Android client application for a hybrid indoor localization and AR navigation system.
-
-The application is developed using Kotlin and Android Studio, and communicates with a Flask backend server through HTTP over Wi‑Fi.
-
-The Android client provides:
-
-- Indoor mapping mode
-- Visual localization mode
-- AR camera preview
-- Real-time ARCore tracking
-- Minimap visualization
-- Coordinate synchronization
-- Real-time trajectory display
-
-The system combines ARCore motion tracking with server-side visual localization to provide indoor navigation functionality in GPS-denied environments.
-
----
-
-## System Workflow
-
-```text
-User Movement
-      │
-      ▼
-Android Camera Capture
-      │
-      ├── Mapping Mode → Upload Images to Server
-      │
-      └── Localization Mode → Query Image Upload
-                                      │
-                                      ▼
-                           Flask Localization Server
-                                      │
-                                      ▼
-                          Localization Coordinates
-                                      │
-                                      ▼
-                     AR Navigation & Minimap Update
-```
-
----
-
-## Main Technologies
-
-| Technology | Purpose |
-|---|---|
-| Kotlin | Android application development |
-| Android Studio | Development environment |
-| ARCore | Motion tracking and AR visualization |
-| Sceneform | 3D rendering framework |
-| Retrofit2 | HTTP communication |
-| OkHttp | Network requests |
-| OpenGL / AR Rendering | Real-time visualization |
+The app communicates with a Flask backend server over Wi-Fi. It supports mapping mode, localization mode, ARCore tracking, minimap display, and coordinate alignment between ARCore coordinates and reconstructed map coordinates.
 
 ---
 
 ## Main Features
 
-### 1. Mapping Mode
-
-The application continuously captures and uploads indoor environment images while the user moves around the environment.
-
-Functions:
-
-- Real-time image upload
-- Mapping status display
-- Camera preview
-- Wi‑Fi communication with server
-- Indoor environment reconstruction support
+- AR camera preview
+- Mapping mode for uploading environment images
+- Localization mode for uploading query images
+- Real-time ARCore motion tracking
+- Minimap visualization
+- Localization history display
+- Dynamic backend server URL configuration
 
 ---
 
-### 2. Localization Mode
+## Backend Server Configuration
 
-The user captures a query image for localization.
+When the app is opened for the first time, it will ask for the backend server URL.
 
-The server processes the image and returns:
+Enter the server address shown in the Flask backend terminal, for example:
 
-- Camera position
-- Pose estimation
-- Rotation quaternion
+```text
+http://192.168.1.100:5001/
+```
 
-The Android client then:
+Make sure:
 
-- Updates the minimap
-- Displays localization history
-- Synchronizes ARCore tracking
-- Updates current user position
+- The Android device and backend server are connected to the same Wi-Fi network
+- The Flask backend server is running before using mapping or localization mode
+- The URL includes the correct port number
+
+The server URL is saved automatically after input.
+
+To change the backend server URL later, long press the top toolbar title area in the app.
 
 ---
 
-### 3. AR Navigation
+## Technologies
 
-ARCore is used to provide:
-
-- Real-time pose estimation
-- Motion tracking
-- Camera coordinate updates
-- Smooth localization visualization
-
-The reconstructed localization coordinates are aligned with ARCore coordinates to support continuous tracking.
+| Technology | Purpose |
+|---|---|
+| Kotlin | Android application development |
+| ARCore | Real-time camera pose tracking |
+| Sceneform | AR rendering framework |
+| Retrofit2 | HTTP API communication |
+| OkHttp | Network request handling |
+| Flask Backend | Visual localization server |
 
 ---
 
 ## Project Structure
 
 ```text
-Capstone/
+Capstone1/
 │
 ├── app/
-│   ├── src/main/java/
+│   ├── src/main/java/com/capstone/capstone/
 │   ├── src/main/res/
-│   ├── AndroidManifest.xml
-│   └── build.gradle
+│   └── build.gradle.kts
 │
 ├── gradle/
-├── build.gradle
-├── settings.gradle
+├── build.gradle.kts
+├── settings.gradle.kts
+├── gradle.properties
+├── gradlew
+├── gradlew.bat
 └── README.md
 ```
 
 ---
 
-## Environment Requirements
+## How to Run
 
-- Android Studio
-- Android SDK 34+
-- Kotlin
-- ARCore-supported Android device
-- Flask localization server running in the same Wi‑Fi network
-
-Recommended test devices:
-
-- Samsung S25 Ultra
-- Google Pixel series
+1. Open the project in Android Studio.
+2. Sync Gradle dependencies.
+3. Connect an ARCore-supported Android device.
+4. Run the app on the device.
+5. Enter the backend server URL when prompted.
 
 ---
 
-## Installation
+## Notes
 
-### 1. Clone Repository
-
-```bash
-git clone https://github.com/your-repository-name.git
-```
-
----
-
-### 2. Open Project
-
-Open the project using Android Studio.
-
----
-
-### 3. Sync Gradle
-
-Allow Android Studio to download dependencies automatically.
-
----
-
-### 4. Run Application
-
-Connect an ARCore-supported Android device and run the application.
-
----
-
-## Server Connection
-
-The Android client communicates with the Flask backend server through HTTP APIs.
-
-Example:
-
-```text
-http://192.168.x.x:5000
-```
-
-The device and server must be connected to the same Wi‑Fi network.
-
----
-
-## Core Functions
-
-| Function | Description |
-|---|---|
-| Mapping | Upload environment images |
-| Localization | Query image localization |
-| AR Tracking | Real-time device tracking |
-| Minimap | Display trajectory and position |
-| Coordinate Alignment | Synchronize ARCore and map coordinates |
-
----
-
-## Research Background
-
-This project was developed as part of a capstone research project:
-
-> Hybrid Indoor Localization Based on Visual Localization, ARCore and Wi‑Fi Communication
-
-The system combines:
-
-- Server-side visual localization
-- ARCore motion tracking
-- Mobile AR interaction
-- Wi‑Fi communication
-
-to provide a lightweight indoor navigation solution.
-
----
-
-## Future Improvements
-
-- Multi-floor navigation
-- Improved localization robustness
-- Real-time SLAM optimization
-- Cloud synchronization
-- Better UI/UX design
-- Dynamic environment adaptation
-
----
-
-## License
-
-This project is for academic and research purposes.
-
+This project is designed for academic and research purposes. The Android client should be used together with the Flask backend server.

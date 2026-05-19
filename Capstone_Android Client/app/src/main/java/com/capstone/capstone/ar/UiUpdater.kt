@@ -7,16 +7,15 @@ import android.os.Looper
 
 /**
  * UIUpdater
- * 负责管理计时器、状态栏文字与姿态面板更新。
- * 所有 UI 操作都自动切换到主线程，避免线程冲突。
- */
+ * Responsible for managing the timer, status bar text and posture panel updates.
+ * All UI operations automatically switch to the main thread to avoid thread conflicts. */
 class UiUpdater(
     private val binding: ActivityMainBinding,
     private val scope: LifecycleCoroutineScope
 ) {
     private var timerJob: Job? = null
 
-    /** 启动计时器 */
+    /** Start the timer */
     fun startTimer() {
         stopTimer()
         val start = System.currentTimeMillis()
@@ -31,7 +30,7 @@ class UiUpdater(
         }
     }
 
-    /** 停止计时器 */
+    /** Stop the timer */
     fun stopTimer() {
         timerJob?.cancel()
         timerJob = null
@@ -41,7 +40,7 @@ class UiUpdater(
         }
     }
 
-    /** 更新状态栏文字（线程安全） */
+    /** Update the status bar text (thread-safe) */
     fun setStatus(text: String) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             binding.chipStatus.text = text
@@ -52,7 +51,7 @@ class UiUpdater(
         }
     }
 
-    /** 更新方向指示器（线程安全），不再显示调试坐标。 */
+    /** Update the direction indicator (thread-safe), and no longer display debugging coordinates. */
     fun updatePosePanel(pos: FloatArray, quat: FloatArray) {
         scope.launch(Dispatchers.Main) {
             binding.posePanel.poseOverlay.setQuaternion(quat[0], quat[1], quat[2], quat[3])

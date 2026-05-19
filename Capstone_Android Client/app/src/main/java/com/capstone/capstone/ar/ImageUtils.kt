@@ -8,14 +8,10 @@ import android.util.Log
 import com.google.ar.core.Frame
 import java.io.ByteArrayOutputStream
 
-/**
- * 工具类：将 ARCore 帧的相机图像（YUV_420_888）转换为 JPEG
- * - 自动处理 stride / pixelStride 差异
- * - 支持指定压缩质量
- */
+
 object ImageUtils {
 
-    /** 从 ARCore 帧提取 JPEG 字节数组 */
+    /** Extract JPEG byte array from ARCore frame */
     fun acquireJpegFromFrame(frame: Frame, quality: Int = 80): ByteArray? {
         var image: Image? = null
         return try {
@@ -77,7 +73,7 @@ object ImageUtils {
         return out
     }
 
-    /** 复制单通道平面数据（处理 stride 不规则情况） */
+    /** Copies single-channel planar data (handles stride irregularity cases) */
     private fun copyPlane(
         plane: Image.Plane,
         width: Int,
