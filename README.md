@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/28010541/README.md)
 # Hybrid Indoor Localization and AR Navigation System
 ## Based on Visual Localization and ARCore
 
@@ -12,7 +11,7 @@ The system combines:
 - ARCore motion tracking
 - Android AR interaction
 - Flask backend server
-- Wi‑Fi communication
+- Wi-Fi communication
 - Client-server architecture
 
 to provide indoor positioning and navigation functionality in GPS-denied environments.
@@ -32,7 +31,7 @@ The project consists of two major components:
 │  (ARCore + Camera)   │
 └──────────┬───────────┘
            │
-           │ HTTP / Wi‑Fi
+           │ HTTP / Wi-Fi
            ▼
 ┌──────────────────────┐
 │ Flask Backend Server │
@@ -86,7 +85,7 @@ During mapping mode:
 
 1. The user moves through the indoor environment
 2. The Android client continuously captures images
-3. Images are uploaded to the Flask server through Wi‑Fi
+3. Images are uploaded to the Flask server through Wi-Fi
 4. The server reconstructs the environment map
 
 ---
@@ -156,6 +155,34 @@ Visual Localization
       ▼
 Pose Estimation
 ```
+
+---
+
+# APK Configuration
+
+The Android APK does not require manual source code modification.
+
+When launching the application for the first time:
+
+1. The application will request the backend server URL
+2. Input the Flask server address manually
+
+Example:
+
+```text
+http://192.168.1.100:5000/
+```
+
+Requirements:
+
+- The Android device and backend server must be connected to the same Wi-Fi network
+- The Flask server must already be running
+
+The server URL is automatically saved locally after configuration.
+
+To modify the server URL again:
+
+- Long press the top title area inside the application
 
 ---
 
@@ -249,13 +276,7 @@ python app.py
 
 # Communication
 
-The Android client communicates with the Flask server through HTTP APIs over the same Wi‑Fi network.
-
-Example server address:
-
-```text
-http://192.168.x.x:5000
-```
+The Android client communicates with the Flask server through HTTP APIs over the same Wi-Fi network.
 
 ---
 
@@ -300,4 +321,3 @@ The system combines server-side visual localization with mobile AR tracking to i
 # License
 
 This project is for academic and research purposes.
-
