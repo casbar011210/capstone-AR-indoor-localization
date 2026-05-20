@@ -1,6 +1,7 @@
 package com.capstone.capstone
 
 import android.os.Bundle
+import android.graphics.PointF
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import kotlin.math.hypot
 
 private enum class Mode { LOCALIZE, MAPPING }
 
@@ -47,6 +49,26 @@ class MainActivity : AppCompatActivity() {
     private var mode: Mode = Mode.LOCALIZE
     private var singleLocalizePending = false
     private var lastLocalizeUpdatedDebug = false
+
+    // The green point on the minimap is always drawn in reconstructed-map coordinates.
+    // After two localization pairs are available, ARCore movement is converted by
+    // the solved similarity transform but is always re-anchored to the latest
+    // reconstructed-map localization point.
+    private var latestLocalizationMapPoint: PointF? = null
+    private var latestLocalizationArPoint: PointF? = null
+    private var latestLocalizationArMappedPoint: PointF? = null
+    private var liveMapPoint: PointF? = null
+    private var arTransformTrackingEnabled = false
+    private var trackingWarmupFrames = 0
+    private var skipNextTransformedStepGuard = false
+
+    private val TRACKING_WARMUP_FRAMES = 6
+    private val MAX_DIRECT_MAP_STEP = 2.50f
+
+    // App-side reconstructed-map horizontal flip.
+    // Server/COLMAP coordinates are not changed; every reconstructed-map point used
+    // by the minimap and ARCore alignment is converted to this display/alignment space.
+    private val FLIP_RECONSTRUCTED_MAP_X = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,7 +111,7 @@ class MainActivity : AppCompatActivity() {
             onCamPoseText = null
         )
 
-        binding.chipUpload.text = "Single Localize"
+        binding.chipUpload.text = "Localize"
         setupUiButtons()
         startArTrackingPoller()
     }
@@ -161,7 +183,7 @@ class MainActivity : AppCompatActivity() {
             mode = if (checked) Mode.MAPPING else Mode.LOCALIZE
             if (!checked) {
                 updateAlignmentStatus()
-                binding.chipUpload.text = "Single Localize"
+                binding.chipUpload.text = "Localize"
             } else {
                 binding.chipUpload.text = "Upload"
             }
@@ -225,6 +247,7 @@ class MainActivity : AppCompatActivity() {
                 if (mode == Mode.MAPPING) {
                     uiUpdater.setStatus("Rebuilding…")
                     NetworkHelper.sendRebuildDone(uiUpdater)
+                    arPollHandler.postDelayed({ loadPathHistory() }, 1200L)
                 } else {
                     uiUpdater.setStatus("Localize mode: no target action")
                 }
@@ -279,10 +302,22 @@ class MainActivity : AppCompatActivity() {
                     binding.miniMap.setLocalizeTrace(historyPoints)
                 }
 
-                if (currentObj != null && currentObj.has("x") && currentObj.has("y")) {
-                    val cx = currentObj.get("x").asFloat
-                    val cy = currentObj.get("y").asFloat
-                    binding.miniMap.setCurrentPosition(cx, cy)
+                // Keep the green dot in the same coordinate source as the yellow route.
+                // If /path contains localization history, the last yellow point is the safest
+                // reconstructed-map anchor. Live tracking still uses the solved ARCore -> map transform.
+                if (historyPoints.isNotEmpty()) {
+                    val last = historyPoints.last()
+                    setGreenDotAnchor(last.x, last.y, "/path history last")
+                } else {
+                    val anchor = liveMapPoint ?: latestLocalizationMapPoint
+                    if (anchor != null) {
+                        binding.miniMap.setCurrentPosition(anchor.x, anchor.y)
+                    } else if (currentObj != null && currentObj.has("x") && currentObj.has("y")) {
+                        val rawCx = currentObj.get("x").asFloat
+                        val rawCy = currentObj.get("y").asFloat
+                        val flipped = reconstructedMapPoint(rawCx, rawCy)
+                        binding.miniMap.setCurrentPosition(flipped.x, flipped.y)
+                    }
                 }
 
                 binding.tvMapStatus.text = "Path loaded · ${mappingPoints.size} map points"
@@ -307,6 +342,31 @@ class MainActivity : AppCompatActivity() {
         return el.asJsonArray
     }
 
+
+    private fun reconstructedMapPoint(x: Float, y: Float): PointF {
+        return if (FLIP_RECONSTRUCTED_MAP_X) PointF(-x, y) else PointF(x, y)
+    }
+
+    private fun setGreenDotAnchor(x: Float, y: Float, source: String) {
+        latestLocalizationMapPoint = PointF(x, y)
+        liveMapPoint = PointF(x, y)
+        binding.miniMap.setCurrentPosition(x, y)
+        Log.d("ANCHOR", "Green dot anchor from $source = [$x,$y]")
+    }
+
+    private fun setLatestLocalizationArAnchor(arSnapshot: ArPoseSnapshot) {
+        // Must use exactly the same ARCore planar convention as SimilarityPoseAligner:
+        // (-x, -z). If this anchor uses (x, -z), the transformed live displacement is
+        // measured from the wrong AR-space point, which appears as a residual rotation
+        // between the green tracking trace and the reconstructed/yellow route.
+        val arX = -arSnapshot.tx
+        val arY = -arSnapshot.tz
+        latestLocalizationArPoint = PointF(arX, arY)
+        latestLocalizationArMappedPoint = poseAligner.currentTransform()?.map(arX, arY)?.let {
+            PointF(it.first, it.second)
+        }
+    }
+
     private fun handlePoseResponse(json: JsonObject, arSnapshot: ArPoseSnapshot) {
         runOnUiThread {
             try {
@@ -317,22 +377,38 @@ class MainActivity : AppCompatActivity() {
                 val mapY = mapPos.second
 
                 binding.chipStatus.text = "Phone localized"
-                binding.miniMap.setCurrentPosition(mapX, mapY)
 
-                val added = poseAligner.addCorrespondence(arSnapshot.toPose(), mapX, mapY)
-                if (added) {
-                    Log.d("ALIGN", "Added AR->map point #${poseAligner.correspondenceCount()} at map=[$mapX,$mapY]")
+                val pathPoints = parseLocalizePathPoints(json)
+                val anchorX: Float
+                val anchorY: Float
+                val anchorSource: String
+                if (pathPoints.isNotEmpty()) {
+                    val last = pathPoints.last()
+                    anchorX = last.x
+                    anchorY = last.y
+                    anchorSource = "localize response path last"
+                    binding.miniMap.setLocalizeTrace(pathPoints)
+                } else {
+                    anchorX = mapX
+                    anchorY = mapY
+                    anchorSource = "localize response position"
                 }
+
+                // Use localization as the reconstructed-map anchor. After two AR/map pairs are
+                // collected, the solved matrix is used to convert the live ARCore pose directly.
+                setGreenDotAnchor(anchorX, anchorY, anchorSource)
+
+                val added = poseAligner.addCorrespondence(arSnapshot.toPose(), anchorX, anchorY)
+                if (added) {
+                    Log.d("ALIGN", "Added AR->map point #${poseAligner.correspondenceCount()} at map=[$anchorX,$anchorY]")
+                }
+                setLatestLocalizationArAnchor(arSnapshot)
+                beginArTransformTrackingFromLatestLocalization()
                 updateAlignmentStatus(added, arSnapshot)
                 lastLocalizeUpdatedDebug = true
 
                 val quat = parseQuaternion(json)
-                uiUpdater.updatePosePanel(floatArrayOf(mapX, mapY, 0f), quat)
-
-                val pathPoints = parseLocalizePathPoints(json)
-                if (pathPoints.isNotEmpty()) {
-                    binding.miniMap.setLocalizeTrace(pathPoints)
-                }
+                uiUpdater.updatePosePanel(floatArrayOf(anchorX, anchorY, 0f), quat)
 
                 uiUpdater.setStatus(
                     "Phone localized"
@@ -356,8 +432,11 @@ class MainActivity : AppCompatActivity() {
             uiUpdater.stopTimer()
             if (!success) {
                 binding.tvArDebugStatus.text = "Localization failed. Try another angle."
-            } else if (!lastLocalizeUpdatedDebug) {
-                binding.tvArDebugStatus.text = "Localization finished"
+            } else {
+                if (!lastLocalizeUpdatedDebug) {
+                    binding.tvArDebugStatus.text = "Localization finished"
+                }
+                loadPathHistory()
             }
         }
     }
@@ -382,50 +461,106 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun beginArTransformTrackingFromLatestLocalization() {
+        val anchor = latestLocalizationMapPoint ?: return
+        liveMapPoint = PointF(anchor.x, anchor.y)
+        binding.miniMap.setCurrentPosition(anchor.x, anchor.y)
+
+        // Live tracking is allowed only after at least two reconstructed-map / ARCore pairs
+        // have created the ARCore -> reconstruction-map transform. Each localization resets
+        // the live tracking origin to the last yellow route point.
+        arTransformTrackingEnabled = poseAligner.currentTransform() != null &&
+            latestLocalizationArMappedPoint != null
+        trackingWarmupFrames = if (arTransformTrackingEnabled) TRACKING_WARMUP_FRAMES else 0
+        // The first transformed update after a localization may include the ARCore pose
+        // change that happened during the warm-up frames. Accept that first point so
+        // live tracking can start instead of being permanently blocked by the jump guard.
+        skipNextTransformedStepGuard = arTransformTrackingEnabled
+    }
+
     private fun tryUpdateFromArPose() {
         if (mode != Mode.LOCALIZE) return
+        if (!arTransformTrackingEnabled) return
+
         val frame = arFragment.arSceneView?.arFrame ?: return
         val camera = frame.camera
         if (camera.trackingState != TrackingState.TRACKING) return
-        val mapped = poseAligner.mapPositionFrom(camera.pose) ?: return
-        binding.miniMap.setCurrentPosition(mapped.first, mapped.second)
 
-        if (poseAligner.currentTransform() != null) {
-            binding.tvArDebugStatus.text = "Live tracking active"
+        val currentPose = camera.pose
+        val currentMap = liveMapPoint ?: latestLocalizationMapPoint
+        val mapAnchor = latestLocalizationMapPoint ?: return
+        val arMappedAnchor = latestLocalizationArMappedPoint ?: return
+
+        // Keep the green dot exactly on the latest localization point for several frames.
+        // This makes every localization restart live tracking from the last yellow route point.
+        if (trackingWarmupFrames > 0) {
+            trackingWarmupFrames -= 1
+            binding.miniMap.setCurrentPosition(mapAnchor.x, mapAnchor.y)
+            binding.tvArDebugStatus.text = "Live tracking starts from the last localization point"
+            return
         }
+
+        val mapped = poseAligner.mapPositionFrom(currentPose) ?: return
+
+        // Use the solved A -> B transform for ARCore movement, but anchor the displayed
+        // green point at the latest reconstructed-map localization point. This guarantees:
+        // 1) the original reconstruction-map/yellow path coordinates are unchanged;
+        // 2) after every localization, the green point restarts from the last yellow point;
+        // 3) the first two alignment points overlap exactly when the two-point matrix is solved.
+        val dx = mapped.first - arMappedAnchor.x
+        val dy = mapped.second - arMappedAnchor.y
+        val next = PointF(mapAnchor.x + dx, mapAnchor.y + dy)
+
+        if (currentMap != null) {
+            val mapStep = hypot(next.x - currentMap.x, next.y - currentMap.y)
+            if (!mapStep.isFinite()) {
+                binding.tvArDebugStatus.text = "Invalid transformed pose ignored"
+                return
+            }
+            if (skipNextTransformedStepGuard) {
+                skipNextTransformedStepGuard = false
+            } else if (mapStep > MAX_DIRECT_MAP_STEP) {
+                binding.tvArDebugStatus.text = "Large transformed jump ignored · localize again if needed"
+                return
+            }
+        }
+
+        liveMapPoint = next
+        binding.miniMap.setCurrentPosition(next.x, next.y)
+        binding.tvArDebugStatus.text = "Live tracking: anchored ARCore → reconstruction map"
     }
 
     private fun updateAlignmentStatus(added: Boolean? = null, snap: ArPoseSnapshot? = null) {
         val count = poseAligner.correspondenceCount()
         val transform = poseAligner.currentTransform()
         binding.tvArDebugStatus.text = if (transform == null) {
-            "Localize ${count}/2 points to enable live tracking"
+            "Green dot locked to localization · localize ${count}/2 to solve AR→map transform"
         } else {
-            "Alignment ready · live tracking enabled"
+            "Alignment ready · live ARCore pose is transformed to map"
         }
     }
 
 
     private fun parseMapPosition(json: JsonObject): Pair<Float, Float>? {
         json.objOrNull("camera_position")?.let { obj ->
-            if (obj.has("x") && obj.has("y")) return obj.get("x").asFloat to obj.get("y").asFloat
-            if (obj.has("px") && obj.has("py")) return obj.get("px").asFloat to obj.get("py").asFloat
+            if (obj.has("x") && obj.has("y")) return reconstructedMapPoint(obj.get("x").asFloat, obj.get("y").asFloat).let { it.x to it.y }
+            if (obj.has("px") && obj.has("py")) return reconstructedMapPoint(obj.get("px").asFloat, obj.get("py").asFloat).let { it.x to it.y }
         }
 
         json.arrayOrNull("camera_position")?.let { arr ->
-            if (arr.size() >= 2) return arr[0].asFloat to arr[1].asFloat
+            if (arr.size() >= 2) return reconstructedMapPoint(arr[0].asFloat, arr[1].asFloat).let { it.x to it.y }
         }
 
         json.objOrNull("position")?.let { obj ->
-            if (obj.has("x") && obj.has("y")) return obj.get("x").asFloat to obj.get("y").asFloat
+            if (obj.has("x") && obj.has("y")) return reconstructedMapPoint(obj.get("x").asFloat, obj.get("y").asFloat).let { it.x to it.y }
         }
 
         json.arrayOrNull("position")?.let { arr ->
-            if (arr.size() >= 2) return arr[0].asFloat to arr[1].asFloat
+            if (arr.size() >= 2) return reconstructedMapPoint(arr[0].asFloat, arr[1].asFloat).let { it.x to it.y }
         }
 
         if (json.has("x") && json.has("y")) {
-            return json.get("x").asFloat to json.get("y").asFloat
+            return reconstructedMapPoint(json.get("x").asFloat, json.get("y").asFloat).let { it.x to it.y }
         }
         return null
     }
@@ -457,9 +592,10 @@ class MainActivity : AppCompatActivity() {
         return pointsArray.mapNotNull { el ->
             runCatching {
                 val obj = el.asJsonObject
+                val p = reconstructedMapPoint(obj.get("x").asFloat, obj.get("y").asFloat)
                 PathPoint(
-                    x = obj.get("x").asFloat,
-                    y = obj.get("y").asFloat,
+                    x = p.x,
+                    y = p.y,
                     quaternion = obj.getAsJsonArray("quaternion")?.map { it.asFloat },
                     timestamp = if (obj.has("timestamp")) obj.get("timestamp").asString else null
                 )

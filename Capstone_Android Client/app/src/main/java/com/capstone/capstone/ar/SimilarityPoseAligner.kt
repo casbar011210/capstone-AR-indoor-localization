@@ -9,7 +9,8 @@ import kotlin.math.sqrt
 
 /**
  * Estimate a 2D similarity transform from ARCore planar coordinates to map coordinates.
- * AR planar coordinates use (x, -z) so forward motion tends to map upward in screen space.
+ * AR planar coordinates use (-x, -z) to match the horizontally flipped reconstruction-map display space.
+ * This keeps the reconstructed/yellow path corrected while giving ARCore tracking the same left/right handedness.
  */
 class SimilarityPoseAligner {
 
@@ -48,13 +49,13 @@ class SimilarityPoseAligner {
     fun currentTransform(): Transform? = transform
 
     fun addCorrespondence(pose: Pose, mapX: Float, mapY: Float): Boolean {
-        val arX = pose.tx()
+        val arX = -pose.tx()
         val arY = -pose.tz()
         return addCorrespondence(arX, arY, mapX, mapY)
     }
 
     fun addCorrespondence(arX: Float, arY: Float, mapX: Float, mapY: Float): Boolean {
-        if (correspondences.any { distance(it.arX, it.arY, arX, arY) < 0.08f }) {
+        if (correspondences.any { distance(it.arX, it.arY, arX, arY) < 0.02f }) {
             return false
         }
         correspondences += Correspondence(arX, arY, mapX, mapY)
@@ -64,11 +65,15 @@ class SimilarityPoseAligner {
 
     fun mapPositionFrom(pose: Pose): Pair<Float, Float>? {
         val t = transform ?: return null
-        return t.map(pose.tx(), -pose.tz())
+        return t.map(-pose.tx(), -pose.tz())
     }
 
     private fun recomputeTransform() {
-        transform = solveSimilarity(correspondences)
+        // The alignment requested here is defined by two localization pairs:
+        // A = a2 - a1 in ARCore coordinates and B = b2 - b1 in reconstruction-map
+        // coordinates. Keeping the first two pairs as the calibration pair makes those
+        // two reconstructed-map points and transformed ARCore points overlap exactly.
+        transform = solveSimilarity(correspondences.take(2))
     }
 
     private fun solveSimilarity(points: List<Correspondence>): Transform? {
