@@ -14,14 +14,14 @@ from datetime import datetime
 
 from db_models import Session
 
-# ========= 路径初始化 =========
+# ========= Path Initialization =========
 HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 session = Session()
 
-# ========= 重新加载模块 =========
+# ========= Reload module =========
 if 'hloc_service' in sys.modules:
     del sys.modules['hloc_service']
 if 'localize_service' in sys.modules:
@@ -36,10 +36,10 @@ from hloc.utils.read_write_model import read_model
 rebuild = hloc_service.rebuild
 localize_image = localize_service.localize_image
 
-# ========= 日志路径 =========
+# ========= Log Path =========
 LOG_PATH = HERE / "localize_log.json"
 
-# ========= 工具函数 =========
+# ========= Utility Functions =========
 def force_rotate(img_path: Path):
     try:
         img = Image.open(img_path)
@@ -72,7 +72,7 @@ mapping_batch_started = False
 
 
 # =========================
-# 🧱 REBUILD（建图）
+#  REBUILD
 # =========================
 @app.route("/rebuild", methods=["POST"])
 def rebuild_route():
@@ -115,7 +115,7 @@ def rebuild_route():
 
 
 # =========================
-# 📍 LOCALIZE（定位 + 记录轨迹）
+#  LOCALIZE
 # =========================
 @app.route("/localize", methods=["POST"])
 def localize_route():
@@ -132,17 +132,17 @@ def localize_route():
     force_rotate(img_path)
 
     try:
-        # ===== 定位 =====
+        # ===== Location =====
         T_w_query, _ = localize_image(img_path)
         T_w_query = np.array(T_w_query)
 
-        # ===== 提取位姿 =====
+        # ===== Pose Extraction =====
         from scipy.spatial.transform import Rotation as R
 
         position = T_w_query[:3, 3].tolist()
         quat = R.from_matrix(T_w_query[:3, :3]).as_quat().tolist()
 
-        # ===== 保存轨迹 =====
+        # ===== Save Track =====
         record = {
             "timestamp": datetime.now().isoformat(),
             "camera_position": [position[0], position[1]],
@@ -152,7 +152,7 @@ def localize_route():
         history = read_log()
         history.append(record)
 
-        # 🔥 限制长度（防卡）
+        # Length Limit
         if len(history) > 200:
             history = history[-200:]
 
@@ -175,13 +175,13 @@ def localize_route():
 
 
 # =========================
-# 🧭 PATH（历史轨迹）
+#  PATH
 # =========================
 @app.route("/path", methods=["GET"])
 def get_path():
     try:
         # =========================
-        # 🟢 mapping路径
+        # mapping route
         # =========================
         mapping_points = []
 
@@ -207,7 +207,7 @@ def get_path():
                 })
 
         # =========================
-        # 🔵 history路径
+        # history route
         # =========================
         history = read_log()
 
@@ -219,12 +219,12 @@ def get_path():
             })
 
         # =========================
-        # 🔴 当前点
+        # current point
         # =========================
         current = history_points[-1] if history_points else None
 
         # =========================
-        # 🖨️ 打印（重点）
+        # print
         # =========================
         print("\n====== DEBUG PATH ======")
 
@@ -250,7 +250,7 @@ def get_path():
         print(">>> PATH ERROR:", e)
         return jsonify({"error": str(e)}), 500
 # =========================
-# 🚀 启动
+# lunch
 # =========================
 if __name__ == "__main__":
     clean_startup_dirs()

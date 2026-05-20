@@ -29,7 +29,7 @@ def localize_image_return_Tw(img_path: Path):
     img_path = Path(img_path)
     assert img_path.exists(), f"Query image not found: {img_path}"
 
-    # ========= 临时 job =========
+    # ========= temporary job =========
     queries_dir = OUTPUTS / "queries"
     queries_dir.mkdir(parents=True, exist_ok=True)
     job_dir = queries_dir / f"job_{int(time.time())}"
@@ -38,7 +38,7 @@ def localize_image_return_Tw(img_path: Path):
     tmp_img = job_dir / img_path.name
     shutil.copy2(img_path, tmp_img)
 
-    # ========= 1. 特征 =========
+    # ========= 1. features =========
     extract_features.main(
         extract_features.confs["aliked-n16"],
         image_dir=job_dir,
@@ -70,7 +70,7 @@ def localize_image_return_Tw(img_path: Path):
         overwrite=True
     )
 
-    # ========= 4. 定位 =========
+    # ========= 4. localization =========
     _, images, _ = read_model(SFM_DIR, ext=".bin")
     model = pycolmap.Reconstruction(SFM_DIR)
 
@@ -86,18 +86,18 @@ def localize_image_return_Tw(img_path: Path):
     localizer = QueryLocalizer(model, conf)
     ret, log = pose_from_cluster(localizer, tmp_img.name, camera, ref_ids, FEATURES, MATCHES)
 
-    # ===== 打印定位质量 =====
+    # ===== Print positioning quality =====
     print(">>> num_inliers:", ret.get("num_inliers", "N/A"))
     print(">>> localize log:", log)
 
     assert "cam_from_world" in ret, f"pose_from_cluster failed: {log}"
 
-    # ========= 5. Query 位姿 =========
+    # ========= 5. Query Pose =========
     T_cw = np.eye(4)
     T_cw[:3, :4] = ret["cam_from_world"].matrix()
     T_w_query = np.linalg.inv(T_cw)
 
-    # ========= 6. Reference 位姿 =========
+    # ========= 6. Reference Pose =========
     best_ref = ret.get("best_cluster", None)
 
     if best_ref is None:
@@ -115,7 +115,7 @@ def localize_image_return_Tw(img_path: Path):
     T_w_ref[:3, :3] = R.T
     T_w_ref[:3, 3] = -R.T @ t
 
-    # ========= 7. 转 list =========
+    # ========= 7. transfer to list =========
     T_w_query = [[float(x) for x in row] for row in T_w_query]
     T_w_ref   = [[float(x) for x in row] for row in T_w_ref]
 

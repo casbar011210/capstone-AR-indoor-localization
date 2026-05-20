@@ -11,7 +11,7 @@ class Scene(Base):
     model_path = Column(String)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-# 固定数据库位置为当前脚本所在目录
+# The database location is fixed to the directory where the current script is located.
 db_path = os.path.join(os.path.dirname(__file__), "vps.db")
 engine = create_engine(f"sqlite:///{db_path}")
 Base.metadata.create_all(engine)

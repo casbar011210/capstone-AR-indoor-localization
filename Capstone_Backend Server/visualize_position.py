@@ -55,7 +55,7 @@ def draw(ax, sfm_pos, records):
     ax.clear()
     ax.set_facecolor("#1e1e2e")
 
-    # 左右镜像：X 轴取反
+    # Mirror image: X-axis reversed
     xs = -sfm_pos[:, 0]
     ys =  sfm_pos[:, 1]
 
@@ -77,7 +77,7 @@ def draw(ax, sfm_pos, records):
         ax.scatter(px, py, c="#ff3366", s=220, zorder=6, label="Current position")
 
         qx, qy, qz, qw = records[-1]["quaternion"]
-        # X 分量取反以匹配镜像
+        # Invert the X component to match the mirror image.
         fwd_x = -(2*(qx*qz + qw*qy))
         fwd_y =   2*(qy*qz - qw*qx)
         arrow_len = max(xs.ptp(), ys.ptp()) * 0.1

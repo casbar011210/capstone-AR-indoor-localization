@@ -21,7 +21,7 @@ MATCHER_CONF = match_features.confs["aliked+lightglue"]
 
 
 def list_references():
-    """列出用于建图的 reference 名单（相对 DB_DIR 的文件名字符串）。"""
+    """Lists the references used for map creation (filename strings relative to DB_DIR)."""
     valid_exts = {".jpg", ".jpeg", ".png"}
     return [
         p.name for p in DB_DIR.iterdir()
@@ -31,12 +31,12 @@ def list_references():
 
 def rebuild():
     """
-    对 DB_DIR 里的 mapping 图像进行：
-      1) 提特征 -> FEATURES
-      2) 生成 pairs（exhaustive）-> SFM_PAIRS
-      3) 匹配 -> MATCHES
-      4) 增量重建 -> SFM_DIR
-    返回 (SFM_DIR, FEATURES, MATCHES, references)
+    Perform the following steps on the mapping image in DB_DIR:
+    1) Feature extraction -> FEATURES
+    2) Generate exhaustive pairs -> SFM_PAIRS
+    3) Matching -> MATCHES
+    4) Incremental reconstruction -> SFM_DIR
+    Return (SFM_DIR, FEATURES, MATCHES, references)
     """
     refs = list_references()
     if len(refs) == 0:
